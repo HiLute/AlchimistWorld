@@ -145,12 +145,18 @@ def test_brew_dialog_brews_two_portions(ui_app, qapp) -> None:
     assert entry.difficulty == 12
 
 
-def test_brew_dialog_without_recipe(ui_app, qapp) -> None:
-    """У Бармаглота рецепта нет — сложность считать не по чему (П-5.9)."""
-    ui_app.inventory.set_reagent("shcholkorekh", 2)
-    dialog = BrewDialog(ui_app, BaseType.LIQUID, {"shcholkorekh": 2})
-    index = dialog.potion.findData("barmaglot")
-    dialog.potion.setCurrentIndex(index)
+def test_brew_dialog_without_recipe(tmp_path, qapp) -> None:
+    """Неизученный рецепт игроку не виден — сложность считать не по чему (FR-14.3)."""
+    from alchimist.services import build_app
+
+    app = build_app(tmp_path / "player")
+    app.create_character("Айн")
+    reagents = {"shchelkorekh": 2, "svechnaya-roza": 1}  # Пламя Саламандры, не изучено
+    for ingredient_id, qty in reagents.items():
+        app.inventory.set_reagent(ingredient_id, qty)
+    dialog = BrewDialog(app, BaseType.VISCOUS, reagents)
+    dialog.result_kind.setCurrentIndex(dialog.result_kind.findText("Новое зелье"))
+    assert dialog.potion.currentData() == "plamya-salamandry"
     assert "не считается" in dialog.difficulty_label.text()
 
 

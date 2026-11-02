@@ -410,3 +410,19 @@ def test_old_journal_entry_returns_one_base(vampire: AppService, tmp_path) -> No
     assert reopened.journal.entry(outcome.entry.id).base_qty == 1
     reopened.brewing.undo_brew(outcome.entry.id)
     assert reopened.inventory.reagent_qty(BLOOD) == 1
+
+
+def test_jabberwock_on_failure_is_one_potion(vampire: AppService) -> None:
+    """Бармаглот — исход провала (П-5.9): одно зелье, сколько порций ни варили бы."""
+    _stock_for_portions(vampire, 2, blood=2)
+    outcome = brew_cure(
+        vampire,
+        reagents={k: v * 2 for k, v in REAGENTS.items()},
+        portions=2,
+        outcome=Outcome.FAILURE,
+        result_kind=ResultKind.JABBERWOCK,
+        potion_id="barmaglot",
+    )
+    assert vampire.inventory.potion_qty("barmaglot") == 1
+    assert outcome.entry.base_qty == 2  # основы ушли на обе порции
+    assert outcome.entry.result.kind is ResultKind.JABBERWOCK

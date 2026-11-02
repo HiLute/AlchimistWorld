@@ -222,7 +222,8 @@ class JournalPage(Page):
                 if entry.result and entry.result.potion_id in potions:
                     result = f"{potions[entry.result.potion_id].name} ×{entry.yield_qty}"
                 if entry.outcome is Outcome.FAILURE:
-                    result = _("провал")
+                    jabberwock = entry.result and entry.result.kind is ResultKind.JABBERWOCK
+                    result = _("провал: Бармаглот") if jabberwock else _("провал")
                 if entry.result and entry.result.potion_id in potions and entry.portions > 1:
                     result = f"{potions[entry.result.potion_id].name} ×{entry.yield_qty}"
                 columns = [

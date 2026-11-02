@@ -103,18 +103,24 @@ def test_brew_dialog_preselects_the_matching_potion(ui_app, qapp) -> None:
 
 def test_brew_dialog_keeps_the_players_own_choice(ui_app, qapp) -> None:
     """Подстановка не должна перебивать того, кто выбрал зелье сам."""
+    from alchimist.core.models import BaseType
+    from alchimist.services import build_app
     from alchimist.ui_qt.dialogs.brew_dialog import BrewDialog
 
-    reagents = {"sopli-trollya": 1, "podlunnukh": 1}
+    app = build_app(ui_app.paths.root / "campaign")
+    app.create_character("GM")
+    reagents = {"semya-nochnogo-plameni": 1, "tkanevyy-list": 1}  # три известных зелья
     for ingredient_id, qty in reagents.items():
-        ui_app.inventory.set_reagent(ingredient_id, qty)
-    base = ui_app.catalog.potion("obychnyy-yad").recipe.sorted_bases()[0]
-    dialog = BrewDialog(ui_app, base, reagents, None, expected=None)
+        app.inventory.set_reagent(ingredient_id, qty)
+    dialog = BrewDialog(app, BaseType.EXPLOSIVE, reagents, None, expected=None)
     qapp.processEvents()
-    index = dialog.potion.findData("barmaglot")
-    dialog.potion.setCurrentIndex(index)
+    last = dialog.potion.itemData(dialog.potion.count() - 1)
+    assert last != dialog.potion.currentData()
+    dialog.potion.setCurrentIndex(dialog.potion.count() - 1)
     qapp.processEvents()
-    assert dialog.potion.currentData() == "barmaglot"
+    dialog.portions.setValue(1)  # любое изменение пересчитывает окно
+    qapp.processEvents()
+    assert dialog.potion.currentData() == last
     dialog.deleteLater()
 
 

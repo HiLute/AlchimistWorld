@@ -61,12 +61,13 @@ def test_brew_dialog_warns_about_unknown_combination(ui_app, qapp) -> None:
 def test_brew_dialog_remembers_previous_attempt(ui_app, qapp) -> None:
     ui_app.inventory.set_reagent("sopli-trollya", 4)
     first = BrewDialog(ui_app, BaseType.EXPLOSIVE, {"sopli-trollya": 2})
-    first.result_kind.setCurrentIndex(2)  # «Ничего не вышло»
+    first.failure.setChecked(True)  # «Ничего не вышло» — это провал
+    assert first.result_kind.currentText() == "Ничего не вышло"
     first._confirm()
 
     second = BrewDialog(ui_app, BaseType.EXPLOSIVE, {"sopli-trollya": 2})
     assert "уже пробовали" in second.hint._label.text()
-    assert "ничего не вышло" in second.hint._label.text()
+    assert "провал" in second.hint._label.text()
 
 
 # ── карточка реагента (FR-1.3, FR-1.4) ───────────────────────────────────────

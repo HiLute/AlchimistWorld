@@ -351,14 +351,16 @@ class BrewingService:
         difficulty: int | None = None
         result = BrewResult(ResultKind.NONE)
         made = None
-        if request.outcome is Outcome.SUCCESS:
+        # Бармаглот — исход провала (П-5.9), но зелье всё равно появляется в сумке.
+        jabberwock = request.result_kind is ResultKind.JABBERWOCK
+        if request.outcome is Outcome.SUCCESS or jabberwock:
             result = BrewResult(request.result_kind, request.potion_id)
             if request.result_kind in (ResultKind.KNOWN, ResultKind.NEW, ResultKind.JABBERWOCK):
                 if not request.potion_id:
                     raise AlchimistError(ErrorCode.NOT_FOUND, id=None)
                 made = self.catalog.potion(request.potion_id)
                 # Сколько порций вышло и что осталось лишним — по рецепту (П-8).
-                if made.recipe is not None:
+                if made.recipe is not None and request.outcome is Outcome.SUCCESS:
                     possible, _leftover = portions_and_excess(elements, made.recipe.elements)
                     if possible > 0:
                         portions = max(1, min(portions, possible))
@@ -383,8 +385,10 @@ class BrewingService:
         potion_ids: tuple[str, ...] = ()
         yield_qty = 0
         if made is not None:
-            # Одна варка даёт столько зелий, сколько порций, если не сказано иное.
-            yield_qty = max(1, request.yield_qty if request.yield_qty > 1 else portions)
+            # Одна варка даёт столько зелий, сколько порций, если не сказано иное;
+            # Бармаглот — один, на сколько порций ни варили бы.
+            default_yield = 1 if jabberwock else portions
+            yield_qty = max(1, request.yield_qty if request.yield_qty > 1 else default_yield)
             have = inventory.potion_qty(made.id)
             inventory = self.inventory.with_potion(inventory, made.id, have + yield_qty, None)
             potion_ids = (made.id,)

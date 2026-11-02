@@ -556,6 +556,8 @@ class LabPage(Page):
 
 def _result_text(entry) -> str:
     if entry.outcome is Outcome.FAILURE:
+        if entry.result is not None and entry.result.kind is ResultKind.JABBERWOCK:
+            return _("провал: Бармаглот")
         return _("провал")
     if entry.result is None:
         return _("неизвестно")
