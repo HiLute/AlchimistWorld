@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from alchimist.core.elements import ELEMENT_NAMES_RU, ELEMENT_ORDER, Element
 from alchimist.core.errors import AlchimistError
+from alchimist.core.ids import normalize_name
 from alchimist.core.models import (
     CATEGORY_NAMES_RU,
     KIND_NAMES_RU,
@@ -39,6 +42,17 @@ from alchimist.ui_qt.widgets.common import FilterBar, SearchBox, page_heading
 from alchimist.ui_qt.widgets.flow import FlowLayout
 
 ANY = "__any__"
+
+
+def copy_name(name: str, taken: Iterable[str]) -> str:
+    """Имя копии: «X (копия)», а если занято — «X (копия 2)», «X (копия 3)»…"""
+    used = {normalize_name(n) for n in taken}
+    candidate = _("{name} (копия)").format(name=name)
+    number = 2
+    while normalize_name(candidate) in used:
+        candidate = _("{name} (копия {n})").format(name=name, n=number)
+        number += 1
+    return candidate
 
 
 def unknown_hint() -> str:
@@ -100,6 +114,7 @@ class IngredientsTab(QWidget):
         self.gm_buttons: list[QPushButton] = []
         for text, handler in (
             (_("Добавить…"), self.add),
+            (_("Дублировать…"), self.duplicate),
             (_("Изменить…"), self.edit),
             (_("Скрыть / показать"), self.toggle_hidden),
             (_("Удалить"), self.delete),
@@ -294,6 +309,18 @@ class IngredientsTab(QWidget):
         if dialog.exec():
             self._save(dialog.build(), new=True)
 
+    def duplicate(self) -> None:
+        """Issue #1: новый реагент по образцу выбранного — быстро завести похожий."""
+        ingredient_id = self._selected_id()
+        if not ingredient_id or not self.app.can_edit_catalog:
+            return
+        source = self.app.catalog.raw_ingredient(ingredient_id)
+        names = (i.name for i in self.app.catalog.catalog.ingredients)
+        template = source.copy(id="", name=copy_name(source.name, names), updated_at=None)
+        dialog = IngredientDialog(self.app, template, self)
+        if dialog.exec():
+            self._save(dialog.build(), new=True)
+
     def edit(self) -> None:
         ingredient_id = self._selected_id()
         if not ingredient_id or not self.app.can_edit_catalog:
@@ -440,6 +467,7 @@ class PotionsTab(QWidget):
         self.gm_buttons: list[QPushButton] = []
         for text, handler in (
             (_("Добавить…"), self.add),
+            (_("Дублировать…"), self.duplicate),
             (_("Изменить…"), self.edit),
             (_("Скрыть / показать"), self.toggle_hidden),
             (_("Удалить"), self.delete),
@@ -604,6 +632,18 @@ class PotionsTab(QWidget):
 
     def add(self) -> None:
         dialog = PotionDialog(self.app, None, self)
+        if dialog.exec():
+            self._save(dialog.build(), new=True)
+
+    def duplicate(self) -> None:
+        """Issue #1: новое зелье по образцу выбранного — вместе с рецептом и тегами."""
+        potion_id = self._selected_id()
+        if not potion_id or not self.app.can_edit_catalog:
+            return
+        source = self.app.catalog.raw_potion(potion_id)
+        names = (p.name for p in self.app.catalog.catalog.potions)
+        template = source.copy(id="", name=copy_name(source.name, names), updated_at=None)
+        dialog = PotionDialog(self.app, template, self)
         if dialog.exec():
             self._save(dialog.build(), new=True)
 

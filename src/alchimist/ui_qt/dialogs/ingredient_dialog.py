@@ -42,7 +42,8 @@ class IngredientDialog(QDialog):
         super().__init__(parent)
         self.app = app
         self.original = ingredient
-        self.setWindowTitle(_("Реагент") if ingredient else _("Новый реагент"))
+        # Без id — новая запись, в том числе копия существующей («Дублировать…»).
+        self.setWindowTitle(_("Реагент") if ingredient and ingredient.id else _("Новый реагент"))
         self.setMinimumWidth(520)
 
         self.name = QLineEdit(ingredient.name if ingredient else suggested_name)

@@ -119,7 +119,8 @@ class PotionDialog(QDialog):
         super().__init__(parent)
         self.app = app
         self.original = potion
-        self.setWindowTitle(_("Зелье") if potion else _("Новое зелье"))
+        # Без id — новая запись, в том числе копия существующей («Дублировать…»).
+        self.setWindowTitle(_("Зелье") if potion and potion.id else _("Новое зелье"))
         self.setMinimumWidth(560)
 
         self.name = QLineEdit(potion.name if potion else suggested_name)
