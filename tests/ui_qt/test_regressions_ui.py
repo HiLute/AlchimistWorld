@@ -243,7 +243,11 @@ def test_window_fits_a_small_screen(window, ui_app, qapp) -> None:
     for page in window.pages:
         window.go_to(type(page))
         qapp.processEvents()
-    assert window.minimumSizeHint().width() < 1100
+    # Экран из отчёта — 1366 px; запас под рамку окна и панели. Ширина зависит от
+    # шрифта (в CI на Windows он заметно крупнее), поэтому порог — само требование,
+    # а при падении видно, какая страница самая широкая.
+    widths = sorted((p.minimumSizeHint().width(), type(p).__name__) for p in window.pages)
+    assert window.minimumSizeHint().width() < 1280, widths[-3:]
 
     window.setMinimumSize(1, 1)
     window.resize(1000, 700)

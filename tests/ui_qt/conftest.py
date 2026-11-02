@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings
 from PySide6.QtWidgets import QApplication
 
 from alchimist.services import build_app
@@ -21,6 +21,22 @@ from alchimist.services import build_app
 def qapp() -> QApplication:
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+@pytest.fixture(autouse=True)
+def window_settings(tmp_path, monkeypatch):
+    """Геометрия окна — во временный файл, а не в настоящий конфиг пользователя.
+
+    Окно при закрытии запоминает свой размер. Без подмены тесты писали его в
+    `~/.config/AlchimistWorld` (на Windows — в реестр), а следующий тест
+    восстанавливал оттуда чужой размер окна.
+    """
+    from alchimist.ui_qt.main_window import MainWindow
+
+    path = str(tmp_path / "window.ini")
+    monkeypatch.setattr(
+        MainWindow, "_settings", lambda self: QSettings(path, QSettings.Format.IniFormat)
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -68,6 +84,10 @@ def window(ui_app, qapp):
     win = MainWindow(ui_app)
     # Окно показывается, иначе страницы считают себя скрытыми и не перерисовываются.
     win.show()
+    # Размер — как у окна по умолчанию: экран offscreen всего 800 px, и при показе
+    # окно ужимается до него, а тогда, например, кнопки строк «Могу сварить»
+    # уезжают за видимую часть списка.
+    win.resize(1180, 760)
     qapp.processEvents()
     yield win
     win.close()

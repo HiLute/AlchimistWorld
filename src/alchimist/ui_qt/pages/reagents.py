@@ -184,7 +184,7 @@ class ReagentsPage(Page):
         buttons.addWidget(self.card_button)
         buttons.addStretch(1)
 
-        self.summary = ElementTotals(columns=7)
+        self.summary = ElementTotals(wrap=True)  # с переносом: иначе задаёт ширину окна
 
         box = self.layout_box()
         box.addLayout(header)

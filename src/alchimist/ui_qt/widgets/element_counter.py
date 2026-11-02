@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from alchimist.core.elements import ELEMENT_NAMES_RU, ELEMENT_ORDER, Element, ElementVector
 from alchimist.ui_qt.theme import bold, element_color, muted_color, on_theme_changed
 from alchimist.ui_qt.widgets.element_badge import colored_dot
+from alchimist.ui_qt.widgets.flow import FlowLayout, group
 
 #: Предел по умолчанию. Поле ввода молча обрезает значение до максимума, поэтому
 #: «на глаз» его ставить нельзя: счётчик без явно заданного предела не должен
@@ -112,13 +113,20 @@ class ElementTotals(QWidget):
     нельзя править.
     """
 
-    def __init__(self, parent: QWidget | None = None, *, columns: int = 7) -> None:
+    def __init__(
+        self, parent: QWidget | None = None, *, columns: int = 7, wrap: bool = False
+    ) -> None:
+        """`wrap=True` — элементы переносятся на следующую строку, когда не влезают.
+
+        В одну линию семь итогов задавали ширину всего окна (issue #2).
+        """
         super().__init__(parent)
         self._dots: dict[Element, QLabel] = {}
         self._values: dict[Element, QLabel] = {}
         self._vector = ElementVector()
 
-        layout = QGridLayout(self)
+        flow = FlowLayout(self, spacing=18, line_spacing=4) if wrap else None
+        layout = QGridLayout() if flow is not None else QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setHorizontalSpacing(10)
         layout.setVerticalSpacing(4)
@@ -137,10 +145,14 @@ class ElementTotals(QWidget):
             value.setAccessibleName(ELEMENT_NAMES_RU[element])
             self._values[element] = value
 
+            if flow is not None:
+                flow.addWidget(group(dot, name, value))
+                continue
             layout.addWidget(dot, row, column * 3)
             layout.addWidget(name, row, column * 3 + 1)
             layout.addWidget(value, row, column * 3 + 2)
-        layout.setColumnStretch(columns * 3, 1)
+        if flow is None:
+            layout.setColumnStretch(columns * 3, 1)
 
         on_theme_changed(self._retheme)
         self.set_vector(self._vector)

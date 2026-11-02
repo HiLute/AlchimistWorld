@@ -36,6 +36,7 @@ from alchimist.ui_qt.widgets.common import (
     page_heading,
 )
 from alchimist.ui_qt.widgets.element_counter import ElementCounters
+from alchimist.ui_qt.widgets.flow import FlowLayout
 
 ANY = "__any__"
 
@@ -115,10 +116,10 @@ class JournalPage(Page):
         self.combination.setEnabled(False)
         self.combination.changed.connect(lambda _v: self.refresh())
 
-        combination_row = QHBoxLayout()
+        # С переносом: флажок встаёт над счётчиками, когда рядом не помещается.
+        combination_row = FlowLayout(spacing=12)
         combination_row.addWidget(self.by_combination)
         combination_row.addWidget(self.combination)
-        combination_row.addStretch(1)
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(7)
