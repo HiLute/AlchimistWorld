@@ -307,3 +307,106 @@ def test_old_journal_and_queue_still_load(tmp_path) -> None:
     entry = app.journal.entries()[0]
     assert entry.base is BaseType.LIQUID and entry.base_ingredient_id is None
     assert app.queue.queue.entries[0].base_key is BaseType.VISCOUS
+
+
+# ── особая основа по одной на порцию ─────────────────────────────────────────
+def _stock_for_portions(app: AppService, portions: int, blood: int) -> None:
+    for ingredient_id, qty in REAGENTS.items():
+        app.inventory.set_reagent(ingredient_id, qty * portions)
+    app.inventory.set_reagent(BLOOD, blood)
+
+
+def _cure_options(app: AppService):
+    app.brewing.invalidate()
+    row = next((r for r in app.brewing.can_brew(max_portions=3) if r.potion.id == CURE), None)
+    return [] if row is None else list(row.options)
+
+
+def test_can_brew_offers_as_many_portions_as_bases(vampire: AppService) -> None:
+    """Реагентов на три порции, а крови две — больше двух порций не предложат."""
+    _stock_for_portions(vampire, 3, blood=2)
+    assert max(o.portions for o in _cure_options(vampire)) == 2
+
+    vampire.inventory.set_reagent(BLOOD, 3)
+    options = _cure_options(vampire)
+    assert max(o.portions for o in options) == 3
+    three = next(o for o in options if o.portions == 3)
+    assert three.base_need == 3 and three.repeats == 1
+
+
+def test_repeats_count_the_bases(vampire: AppService) -> None:
+    """Реагентов на три варки, а крови на одну — «×1», а не «×3»."""
+    _stock_for_portions(vampire, 3, blood=1)
+    options = _cure_options(vampire)
+    single = next(o for o in options if o.portions == 1)
+    assert single.repeats == 1
+    vampire.brewing.invalidate()
+    row = next(r for r in vampire.brewing.can_brew(max_portions=3) if r.potion.id == CURE)
+    assert row.max_repeats == 1
+
+
+def test_brewing_several_portions_spends_a_base_each(vampire: AppService) -> None:
+    _stock_for_portions(vampire, 3, blood=3)
+    outcome = brew_cure(vampire, reagents={k: v * 3 for k, v in REAGENTS.items()}, portions=3)
+    assert outcome.entry.portions == 3 and outcome.entry.base_qty == 3
+    assert vampire.inventory.reagent_qty(BLOOD) == 0
+    assert vampire.inventory.potion_qty(CURE) == 3
+
+    vampire.brewing.undo_brew(outcome.entry.id)
+    assert vampire.inventory.reagent_qty(BLOOD) == 3  # вернулись все три
+
+
+def test_failed_brew_spends_bases_for_planned_portions(vampire: AppService) -> None:
+    _stock_for_portions(vampire, 2, blood=2)
+    outcome = brew_cure(
+        vampire,
+        reagents={k: v * 2 for k, v in REAGENTS.items()},
+        portions=2,
+        outcome=Outcome.FAILURE,
+        result_kind=ResultKind.NONE,
+        potion_id=None,
+    )
+    assert outcome.entry.base_qty == 2
+    assert vampire.inventory.reagent_qty(BLOOD) == 0
+
+
+def test_not_enough_bases_for_portions(vampire: AppService) -> None:
+    _stock_for_portions(vampire, 2, blood=1)
+    reagents = {k: v * 2 for k, v in REAGENTS.items()}
+    code = code_of(lambda: brew_cure(vampire, reagents=reagents, portions=2))
+    assert code is ErrorCode.NO_SPECIAL_BASE
+    assert vampire.inventory.reagent_qty(BLOOD) == 1  # ничего не списано
+
+
+def test_lab_hint_caps_portions_by_bases(vampire: AppService) -> None:
+    _stock_for_portions(vampire, 3, blood=2)
+    reagents = {k: v * 3 for k, v in REAGENTS.items()}
+    assert vampire.brewing.special_base_limit(BLOOD, reagents) == 2
+    assert vampire.brewing.special_base_limit(BaseType.LIQUID, reagents) is None
+    best = next(c for c in vampire.brewing.hint(BLOOD, reagents).candidates if c.potion.id == CURE)
+    assert best.portions == 2
+    assert best.excess == EV.from_dict({"light": 2, "water": 1})  # третья порция — лишнее
+
+
+def test_queue_reserves_a_base_per_portion(vampire: AppService) -> None:
+    _stock_for_portions(vampire, 2, blood=3)
+    entry = vampire.queue.add(CURE, BLOOD, {k: v * 2 for k, v in REAGENTS.items()}, portions=2)
+    assert entry.needs()[BLOOD] == 2
+    assert vampire.brewing.available_quantities().get(BLOOD) == 1
+
+
+def test_old_journal_entry_returns_one_base(vampire: AppService, tmp_path) -> None:
+    """Запись из 2.5 (основа одна на варку) при отмене возвращает одну основу."""
+    _stock_for_portions(vampire, 2, blood=2)
+    outcome = brew_cure(vampire, reagents={k: v * 2 for k, v in REAGENTS.items()}, portions=2)
+    path = vampire.paths.journal_file
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["schema_version"] = 4
+    for raw in data["entries"]:
+        raw.pop("base_qty", None)
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    reopened = build_app(tmp_path)
+    assert reopened.journal.entry(outcome.entry.id).base_qty == 1
+    reopened.brewing.undo_brew(outcome.entry.id)
+    assert reopened.inventory.reagent_qty(BLOOD) == 1

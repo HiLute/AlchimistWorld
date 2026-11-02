@@ -20,7 +20,7 @@ CURRENT_VERSIONS: dict[str, int] = {
     "ingredients": 2,
     "potions": 1,
     "inventory": 1,
-    "journal": 4,
+    "journal": 5,
     "queue": 2,
     "settings": 1,
     "catalog-export": 2,
@@ -92,6 +92,17 @@ def _journal_v3_to_v4(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _journal_v4_to_v5(data: dict[str, Any]) -> dict[str, Any]:
+    """Особая основа теперь тратится по одной на порцию; у варки есть `base_qty`.
+
+    Старые записи не меняются: без ключа читается 1 — до 2.6 основа уходила одна
+    на варку, и столько же вернёт отмена. Версия поднята, чтобы приложение постарше
+    не переписало журнал без `base_qty`: тогда отмена новой варки на трёх порциях
+    вернула бы одну основу вместо трёх.
+    """
+    return data
+
+
 def _queue_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
     """Запись очереди может стоять на особой основе (`base_ingredient`, П-4.4).
 
@@ -116,7 +127,12 @@ MIGRATIONS: dict[str, dict[int, Migration]] = {
     "ingredients": {1: _ingredients_v1_to_v2},
     "potions": {},
     "inventory": {},
-    "journal": {1: _journal_v1_to_v2, 2: _journal_v2_to_v3, 3: _journal_v3_to_v4},
+    "journal": {
+        1: _journal_v1_to_v2,
+        2: _journal_v2_to_v3,
+        3: _journal_v3_to_v4,
+        4: _journal_v4_to_v5,
+    },
     "queue": {1: _queue_v1_to_v2},
     "settings": {},
     # Файл обмена устроен как справочник: реагенты в нём мигрируют так же.

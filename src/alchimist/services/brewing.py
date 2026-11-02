@@ -229,13 +229,20 @@ class BrewingService:
         return total
 
     def candidates_for(
-        self, base: BaseKey, elements: ElementVector, limit: int = 12
+        self,
+        base: BaseKey,
+        elements: ElementVector,
+        limit: int = 12,
+        *,
+        max_portions: int | None = None,
     ) -> list[BrewCandidate]:
         """Что получится из этой суммы на этой основе (П-8.1, П-8.2).
 
         С правилом о лишних эссенциях подходит любое зелье, чей рецепт покрыт
         набранным: лишнее просто поднимает сложность. Перебирать нечего —
         достаточно пройти по рецептам и посчитать порции с остатком.
+
+        `max_portions` — потолок порций: на особой основе их не больше, чем основ.
         """
         found: list[BrewCandidate] = []
         for potion in self.catalog.potions():
@@ -247,6 +254,9 @@ class BrewingService:
             portions, excess = portions_and_excess(elements, recipe.elements)
             if portions <= 0:
                 continue
+            if max_portions is not None and portions > max_portions:
+                portions = max(1, max_portions)
+                excess = elements - recipe.elements * portions
             found.append(
                 BrewCandidate(
                     potion,
@@ -272,7 +282,8 @@ class BrewingService:
         elements = self.combination_elements(reagents)
         if base is None or elements.is_empty:
             return LabHint(elements)
-        candidates = tuple(self.candidates_for(base, elements))
+        limit = self.special_base_limit(base, reagents)
+        candidates = tuple(self.candidates_for(base, elements, max_portions=limit))
         history = tuple(self.journal.combination_history(base, elements))
         matches = tuple(c.potion for c in candidates)
         return LabHint(elements, candidates, history, self._allowed_kits(base, reagents, matches))
@@ -294,6 +305,16 @@ class BrewingService:
                 continue
             allowed.append(kit)
         return tuple(allowed)
+
+    def special_base_limit(self, base: BaseKey | None, reagents: dict[str, int]) -> int | None:
+        """На сколько порций хватит особой основы (по одной на порцию). None — основа обычная.
+
+        Штуки той же основы, положенные в котёл реагентами, основой уже не будут.
+        """
+        if not is_special_base_key(base):
+            return None
+        special = str(base)
+        return max(0, self.inventory.reagent_qty(special) - reagents.get(special, 0))
 
     def max_portions_for(self, potion_id: str, reagents: dict[str, int] | None = None) -> int:
         """Сколько порций даёт набранное (или весь инвентарь, если ничего не задано)."""
@@ -318,47 +339,55 @@ class BrewingService:
         if not reagents:
             raise AlchimistError(ErrorCode.NO_REAGENTS)
 
-        # Особая основа (П-4.4) списывается из сумки, одна на варку, но в сумму
-        # элементов не идёт: `elements` считаются только по реагентам котла.
         special = request.base if is_special_base_key(request.base) else None
-        consumed = dict(reagents)
-        if special is not None:
-            base_ingredient = self.catalog.ingredient(special)
-            if not base_ingredient.is_special_base:
-                raise AlchimistError(ErrorCode.NOT_FOUND, id=special)
-            consumed[special] = consumed.get(special, 0) + 1
-            if self.inventory.reagent_qty(special) < consumed[special]:
-                raise AlchimistError(
-                    ErrorCode.NO_SPECIAL_BASE, name=base_ingredient.name, id=special
-                )
-
         elements = self.combination_elements(reagents)
-        inventory = self.inventory.consume_preview(consumed)
+        # Нехватка реагентов — первое, о чём надо сказать: дальше нет смысла считать.
+        self.inventory.consume_preview(reagents)
 
+        # Потом — сколько порций на самом деле варится: от этого зависит,
+        # сколько особой основы уйдёт.
         portions = max(1, request.portions)
         excess = ElementVector()
         difficulty: int | None = None
         result = BrewResult(ResultKind.NONE)
-        potion_ids: tuple[str, ...] = ()
-        yield_qty = 0
+        made = None
         if request.outcome is Outcome.SUCCESS:
             result = BrewResult(request.result_kind, request.potion_id)
             if request.result_kind in (ResultKind.KNOWN, ResultKind.NEW, ResultKind.JABBERWOCK):
                 if not request.potion_id:
                     raise AlchimistError(ErrorCode.NOT_FOUND, id=None)
-                potion = self.catalog.potion(request.potion_id)
+                made = self.catalog.potion(request.potion_id)
                 # Сколько порций вышло и что осталось лишним — по рецепту (П-8).
-                if potion.recipe is not None:
-                    possible, _leftover = portions_and_excess(elements, potion.recipe.elements)
+                if made.recipe is not None:
+                    possible, _leftover = portions_and_excess(elements, made.recipe.elements)
                     if possible > 0:
                         portions = max(1, min(portions, possible))
-                        excess = elements - potion.recipe.elements * portions
-                    difficulty = brew_difficulty(potion.rarity, portions, excess.total).total
-                # Одна варка даёт столько зелий, сколько порций, если не сказано иное.
-                yield_qty = max(1, request.yield_qty if request.yield_qty > 1 else portions)
-                have = inventory.potion_qty(potion.id)
-                inventory = self.inventory.with_potion(inventory, potion.id, have + yield_qty, None)
-                potion_ids = (potion.id,)
+                        excess = elements - made.recipe.elements * portions
+                    difficulty = brew_difficulty(made.rarity, portions, excess.total).total
+
+        # Особая основа (П-4.4) списывается из сумки по одной на порцию — и при
+        # провале тоже: на сколько порций варили, столько и ушло. В сумму элементов
+        # она не идёт: `elements` считаются только по реагентам котла.
+        consumed = dict(reagents)
+        if special is not None:
+            base_ingredient = self.catalog.ingredient(special)
+            if not base_ingredient.is_special_base:
+                raise AlchimistError(ErrorCode.NOT_FOUND, id=special)
+            consumed[special] = consumed.get(special, 0) + portions
+            if self.inventory.reagent_qty(special) < consumed[special]:
+                raise AlchimistError(
+                    ErrorCode.NO_SPECIAL_BASE, name=base_ingredient.name, id=special
+                )
+        inventory = self.inventory.consume_preview(consumed)
+
+        potion_ids: tuple[str, ...] = ()
+        yield_qty = 0
+        if made is not None:
+            # Одна варка даёт столько зелий, сколько порций, если не сказано иное.
+            yield_qty = max(1, request.yield_qty if request.yield_qty > 1 else portions)
+            have = inventory.potion_qty(made.id)
+            inventory = self.inventory.with_potion(inventory, made.id, have + yield_qty, None)
+            potion_ids = (made.id,)
 
         entry = JournalEntry(
             id=new_id(),
@@ -366,6 +395,7 @@ class BrewingService:
             type=JournalEntryType.BREW,
             base=None if special else request.base,
             base_ingredient_id=special,
+            base_qty=portions if special else 1,
             reagents=tuple(ReagentStack(i, q) for i, q in sorted(reagents.items())),
             elements=elements,
             outcome=request.outcome,
@@ -443,7 +473,8 @@ class BrewingService:
         inventory = self.inventory.inventory
         returned = [(s.ingredient_id, s.qty) for s in entry.reagents]
         if entry.base_ingredient_id:
-            returned.append((entry.base_ingredient_id, 1))  # особая основа — тоже назад
+            # Особая основа — тоже назад, ровно столько, сколько списали.
+            returned.append((entry.base_ingredient_id, entry.base_qty))
         for ingredient_id, qty in returned:
             have = inventory.reagent_qty(ingredient_id)
             inventory = self.inventory.with_reagent(inventory, ingredient_id, have + qty, None)

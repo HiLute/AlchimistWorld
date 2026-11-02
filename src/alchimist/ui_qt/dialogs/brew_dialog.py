@@ -216,7 +216,8 @@ class BrewDialog(QDialog):
         )
         self.potion.setEnabled(needs_potion)
         self.create_potion.setEnabled(needs_potion)
-        self.portions.setEnabled(needs_potion)
+        # На особой основе порции важны и при провале: основ уходит по одной на порцию.
+        self.portions.setEnabled(needs_potion or self._base_limit() is not None)
         self._refresh_difficulty(needs_potion)
 
         base = self.base.currentData()
@@ -281,6 +282,15 @@ class BrewDialog(QDialog):
         self._potion_touched = True
         self._refresh_difficulty(self.potion.isEnabled())
 
+    def _base_limit(self) -> int | None:
+        """На сколько порций хватит особой основы; None — основа обычная (П-4.4)."""
+        return self.app.brewing.special_base_limit(self.base.currentData(), self.reagents)
+
+    def _cap(self, portions: int) -> int:
+        """Порций не больше, чем особых основ в сумке."""
+        limit = self._base_limit()
+        return portions if limit is None else max(1, min(portions, limit))
+
     def _refresh_difficulty(self, active: bool) -> None:
         """Сложность и остаток считаются по рецепту выбранного зелья (П-8)."""
         potion_id = self.potion.currentData()
@@ -288,7 +298,7 @@ class BrewDialog(QDialog):
             self.difficulty_label.setText("—")
             self.difficulty_label.setToolTip("")
             self.excess_label.setText("—")
-            self.portions.setMaximum(99)
+            self.portions.setMaximum(self._cap(99))
             return
 
         potion = self.app.catalog.potion(potion_id)
@@ -301,7 +311,7 @@ class BrewDialog(QDialog):
 
         if potion.recipe is None or possible <= 0:
             # Рецепта нет или элементов не хватает: сложность считать не по чему.
-            self.portions.setMaximum(99)
+            self.portions.setMaximum(self._cap(99))
             self.difficulty_label.setText(
                 _("по рецепту не считается") if potion.recipe is None else _("элементов не хватает")
             )
@@ -309,15 +319,16 @@ class BrewDialog(QDialog):
             self.excess_label.setText("—")
             return
 
+        possible = self._cap(possible)
         if self.portions.maximum() != possible:
             self.portions.setMaximum(possible)
-            # По умолчанию варим всё, на что хватило: реагенты всё равно уже
-            # потрачены, а лишняя порция обходится дешевле того же объёма
-            # лишних эссенций (П-8.1 против П-8.2).
-            if not self._portions_touched:
-                self.portions.blockSignals(True)
-                self.portions.setValue(possible)
-                self.portions.blockSignals(False)
+        # По умолчанию варим всё, на что хватило: реагенты всё равно уже
+        # потрачены, а лишняя порция обходится дешевле того же объёма
+        # лишних эссенций (П-8.1 против П-8.2).
+        if not self._portions_touched and self.portions.value() != possible:
+            self.portions.blockSignals(True)
+            self.portions.setValue(possible)
+            self.portions.blockSignals(False)
         portions = min(self.portions.value(), possible)
         excess = elements - potion.recipe.elements * portions
         difficulty = brew_difficulty(potion.rarity, portions, excess.total)
@@ -340,7 +351,10 @@ class BrewDialog(QDialog):
             outcome=Outcome.SUCCESS if success else Outcome.FAILURE,
             result_kind=kind,
             potion_id=self.potion.currentData() if needs_potion else None,
-            portions=self.portions.value() if needs_potion else 1,
+            # На особой основе — и при провале: столько основ и уйдёт.
+            portions=(
+                self.portions.value() if needs_potion or self._base_limit() is not None else 1
+            ),
             note=self.note.text().strip(),
         )
 

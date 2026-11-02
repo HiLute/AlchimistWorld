@@ -150,6 +150,8 @@ class BrewOption:
     kit: Kit
     #: Особая основа, которую требует рецепт (П-4.4); тогда `bases` пустой.
     base_ingredient: Ingredient | None = None
+    #: Сколько этой основы в сумке всего: она тратится по одной на порцию.
+    base_stock: int = 0
 
     @property
     def base(self) -> BaseKey:
@@ -170,7 +172,20 @@ class BrewOption:
 
     @property
     def repeats(self) -> int:
-        return self.combination.repeats
+        """Сколько раз хватит запасов — с особой основой ещё и сколько хватит основ."""
+        repeats = self.combination.repeats
+        if self.base_ingredient is not None:
+            per_brew = self.base_need
+            repeats = min(repeats, self.base_stock // per_brew if per_brew else repeats)
+        return repeats
+
+    @property
+    def base_need(self) -> int:
+        """Сколько штук особой основы уходит на одну такую варку: основой и реагентом."""
+        if self.base_ingredient is None:
+            return 0
+        as_reagent = self.combination.as_map().get(self.base_ingredient.id, 0)
+        return self.combination.portions + as_reagent
 
     @property
     def portions(self) -> int:
@@ -570,11 +585,18 @@ def greedy_max_repeats(options: Iterable[BrewOption]) -> int:
         for class_pick in option.combination.classes:
             for member in class_pick.members:
                 remaining[member.ingredient.id] = member.qty
+    # Особая основа: в классах её запас урезан на занятые под основу штуки,
+    # поэтому берётся полный запас, а основа считается в каждую варку (П-4.4).
+    for option in options:
+        if option.base_ingredient is not None:
+            remaining[option.base_ingredient.id] = option.base_stock
 
     total = 0
     while True:
         for option in options:
             need = option.combination.as_map()
+            if option.base_ingredient is not None:
+                need[option.base_ingredient.id] = option.base_need
             if all(remaining.get(iid, 0) >= qty for iid, qty in need.items()):
                 for iid, qty in need.items():
                     remaining[iid] -= qty
@@ -611,17 +633,22 @@ def read_as_portions(combo: Combination, recipe_elements: ElementVector) -> Comb
     return replace(combo, portions=portions, excess=excess)
 
 
+def as_portions(combo: Combination, recipe_elements: ElementVector, portions: int) -> Combination:
+    """Вариант ровно на `portions` порций: всё сверх — лишние эссенции (П-8.1)."""
+    return replace(combo, portions=portions, excess=combo.elements - recipe_elements * portions)
+
+
 def _stock_for_kit(stock: Sequence[StockItem], kit: Kit) -> list[StockItem]:
     return [s for s in stock if kit_allows_ingredient(kit, s.ingredient)]
 
 
-def _without_one(stock: Sequence[StockItem], ingredient_id: str) -> list[StockItem]:
-    """Запас минус одна штука: столько уходит на особую основу (одна на варку)."""
+def _without(stock: Sequence[StockItem], ingredient_id: str, count: int = 1) -> list[StockItem]:
+    """Запас минус `count` штук: столько уходит на особую основу (по одной на порцию)."""
     left: list[StockItem] = []
     for item in stock:
         if item.ingredient.id == ingredient_id:
-            if item.qty > 1:
-                left.append(StockItem(item.ingredient, item.qty - 1))
+            if item.qty > count:
+                left.append(StockItem(item.ingredient, item.qty - count))
             continue
         left.append(item)
     return left
@@ -680,9 +707,10 @@ def brewable(
             if not kit_allows_potion(kit, potion):
                 continue
             if special:
-                # Основа занимает одну штуку: реагентом эта штука уже не будет.
+                # Основа уходит по одной на порцию: реагентами эти штуки уже не будут.
+                # Запас под одну порцию — для оценки, достижим ли рецепт вообще.
                 bases: list[BaseType] = []
-                kit_stock = _without_one(per_kit_stock[kit], special)
+                kit_stock = _without(per_kit_stock[kit], special)
                 classes = build_classes(kit_stock)
                 available = _available(kit_stock)
             else:
@@ -700,16 +728,29 @@ def brewable(
                 continue
 
             combos: dict[tuple[tuple[str, int], ...], Combination] = {}
-            for portions in range(1, min(max_portions, reachable) + 1):
+            top = min(max_portions, reachable)
+            if special:
+                top = min(top, base_item.qty)  # type: ignore[union-attr]
+            for portions in range(1, top + 1):
+                portion_classes = classes
+                if special and portions > 1:
+                    # На каждую порцию — своя штука основы: запас под реагенты меньше.
+                    portion_classes = build_classes(_without(per_kit_stock[kit], special, portions))
                 found = find_combinations(
                     recipe.elements * portions,
                     (),
                     limit=options_per_potion,
                     max_excess=max_excess,
-                    classes=classes,
+                    classes=portion_classes,
                 )
                 for combo in found:
-                    normalized = read_as_portions(combo, recipe.elements)
+                    # С особой основой порций ровно столько, на сколько отложено
+                    # основ; лишнее идёт в лишние эссенции, а не в новую порцию.
+                    normalized = (
+                        as_portions(combo, recipe.elements, portions)
+                        if special
+                        else read_as_portions(combo, recipe.elements)
+                    )
                     key = tuple(sorted(normalized.as_map().items()))
                     known = combos.get(key)
                     if known is None or normalized.portions > known.portions:
@@ -732,8 +773,9 @@ def brewable(
                 )
 
         base_ingredient = base_item.ingredient if base_item is not None else None
+        base_stock = base_item.qty if base_item is not None else 0
         options = [
-            BrewOption(potion, frozenset(bases), combo, kit, base_ingredient)
+            BrewOption(potion, frozenset(bases), combo, kit, base_ingredient, base_stock)
             for combo, bases, kit in merged.values()
         ]
         if options:
@@ -863,10 +905,10 @@ def almost_ready(
             if not kit_allows_potion(kit, potion):
                 continue
             if special:
-                # Особая основа (П-4.4): если она есть, одна штука занята под основу.
+                # Особая основа (П-4.4): если она есть, одна штука занята под основу одной порции.
                 base: BaseKey = special
                 classes = (
-                    build_classes(_without_one(per_kit_stock[kit], special))
+                    build_classes(_without(per_kit_stock[kit], special))
                     if has_base
                     else per_kit_classes[kit]
                 )

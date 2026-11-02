@@ -146,3 +146,27 @@ def test_recipe_editor_saves_special_base(vampire, qapp) -> None:
     editor.bases[BaseType.LIQUID].setChecked(True)
     recipe = dialog.build().recipe
     assert recipe.required_base_id is None and recipe.bases == frozenset({BaseType.LIQUID})
+
+
+def test_brew_dialog_caps_portions_by_bases(vampire, qapp) -> None:
+    """Реагентов на три порции, крови две: больше двух порций выбрать нельзя."""
+    from alchimist.ui_qt.dialogs.brew_dialog import BrewDialog
+
+    reagents = {"svechnaya-roza": 3, "mylnaya-trava": 3, "sopli-trollya": 3}
+    for ingredient_id, qty in reagents.items():
+        vampire.inventory.set_reagent(ingredient_id, qty)
+    vampire.inventory.set_reagent(BLOOD, 2)
+
+    dialog = BrewDialog(vampire, BLOOD, reagents)
+    index = dialog.potion.findData(CURE)
+    dialog.potion.setCurrentIndex(index)
+    qapp.processEvents()
+    assert dialog.portions.maximum() == 2
+    assert dialog.portions.value() == 2
+
+    # При провале порции тоже важны: основы уходят по одной на порцию.
+    dialog.failure.setChecked(True)
+    qapp.processEvents()
+    assert dialog.portions.isEnabled()
+    assert dialog.request().portions == 2
+    dialog.close()

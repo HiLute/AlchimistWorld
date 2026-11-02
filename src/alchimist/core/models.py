@@ -348,10 +348,11 @@ class QueueEntry:
         return {s.ingredient_id: s.qty for s in self.reagents if s.qty > 0}
 
     def needs(self) -> dict[str, int]:
-        """Всё, что запись занимает в сумке: реагенты и особая основа (одна на варку)."""
+        """Всё, что запись занимает в сумке: реагенты и особая основа — по одной на порцию."""
         needed = self.reagent_map()
         if self.base_ingredient_id:
-            needed[self.base_ingredient_id] = needed.get(self.base_ingredient_id, 0) + 1
+            base = self.base_ingredient_id
+            needed[base] = needed.get(base, 0) + max(1, self.portions)
         return needed
 
 
@@ -481,6 +482,9 @@ class JournalEntry:
     undone: bool = False
     #: Особая основа варки (П-4.4): списана из сумки, в `elements` не входит.
     base_ingredient_id: str | None = None
+    #: Сколько штук особой основы списано: по одной на порцию. У записей до 2.6,
+    #: когда основа уходила одна на варку, здесь 1 — столько и вернёт отмена.
+    base_qty: int = 1
 
     def __post_init__(self) -> None:
         object.__setattr__(

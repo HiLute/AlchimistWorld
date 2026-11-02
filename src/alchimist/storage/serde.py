@@ -245,6 +245,8 @@ def entry_to_dict(entry: JournalEntry) -> dict[str, Any]:
         data["base"] = str(entry.base.value) if entry.base else None
         # Особая основа (П-4.4) — отдельным ключом: в `reagents` её нет, в сумму она не шла.
         data["base_ingredient"] = entry.base_ingredient_id
+        if entry.base_ingredient_id:
+            data["base_qty"] = entry.base_qty
         data["reagents"] = [
             {"ingredient_id": r.ingredient_id, "qty": r.qty} for r in entry.reagents
         ]
@@ -318,6 +320,8 @@ def entry_from_dict(data: dict[str, Any], path: str = "") -> JournalEntry:
             note=str(data.get("note", "")),
             undone=bool(data.get("undone", False)),
             base_ingredient_id=data.get("base_ingredient") or None,
+            # До 2.6 особая основа уходила одна на варку, сколько бы ни было порций.
+            base_qty=int(data.get("base_qty", 1) or 1),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise StorageError(ErrorCode.STORAGE_CORRUPT, path=path, reason=str(exc)) from exc
