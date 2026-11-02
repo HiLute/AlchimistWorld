@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QWidget
 
 from alchimist.core.elements import ElementVector as EV
 from alchimist.core.models import (
@@ -190,3 +190,64 @@ def test_pages_scroll_instead_of_squashing(window, ui_app, qapp) -> None:
     lab = next(p for p in window.pages if isinstance(p, LabPage))
     for box in lab.elements._boxes.values():
         assert box.height() >= box.minimumSizeHint().height()
+
+
+# ── issue #3: числа суммы элементов прятались за край поля ────────────────────
+def test_read_only_counters_show_their_numbers(qapp) -> None:
+    """В Qt 6.12 поле ввода без стрелок под таблицей стилей сжимало текст до пикселя.
+
+    Сумма в «Лаборатории» и в окне варки — только показ, поэтому там подписи, а
+    не поля ввода; число должно целиком помещаться в своё поле.
+    """
+    from PySide6.QtWidgets import QSpinBox
+
+    from alchimist.ui_qt.widgets.element_counter import ElementCounters
+
+    counters = ElementCounters(read_only=True, columns=1)
+    counters.set_vector(EV.from_dict({"fire": 2, "magic": 12}))
+    counters.show()
+    qapp.processEvents()
+    assert counters.findChildren(QSpinBox) == []
+    assert counters.vector() == EV.from_dict({"fire": 2, "magic": 12})
+    for field in counters._boxes.values():
+        assert field.contentsRect().width() >= field.fontMetrics().horizontalAdvance(field.text())
+    texts = {e.value: f.text() for e, f in counters._boxes.items()}
+    assert texts["fire"] == "2" and texts["magic"] == "12" and texts["water"] == "0"
+
+
+def test_no_buttonless_spin_boxes_anywhere(window, ui_app, qapp) -> None:
+    """Ни одного поля ввода без стрелок: в Qt 6.12 их текст не виден."""
+    from PySide6.QtWidgets import QAbstractSpinBox
+
+    for page in window.pages:
+        window.go_to(type(page))
+        qapp.processEvents()
+        for box in page.findChildren(QAbstractSpinBox):
+            assert box.buttonSymbols() != QAbstractSpinBox.ButtonSymbols.NoButtons, page
+
+
+# ── issue #2: окно не помещалось на экран 1366×768 ───────────────────────────
+def test_window_fits_a_small_screen(window, ui_app, qapp) -> None:
+    """Строки фильтров и кнопок переносятся, а не задают ширину всего окна."""
+    from PySide6.QtWidgets import QTabWidget
+
+    from alchimist.ui_qt.pages.catalog import CatalogPage
+
+    ui_app.create_character("GM", seed_catalog=False)  # у GM кнопок и фильтров больше
+    for page in window.pages:
+        window.go_to(type(page))
+        qapp.processEvents()
+    assert window.minimumSizeHint().width() < 1100
+
+    window.setMinimumSize(1, 1)
+    window.resize(1000, 700)
+    window.go_to(CatalogPage)
+    catalog = next(p for p in window.pages if isinstance(p, CatalogPage))
+    catalog.findChild(QTabWidget).setCurrentIndex(1)
+    qapp.processEvents()
+    bar = catalog.potions.filters
+    assert bar.height() > bar.sizeHint().height()  # перенеслись на вторую строку
+    items = [c for c in bar.children() if isinstance(c, QWidget) and c.isVisible()]
+    assert items
+    for item in items:
+        assert bar.rect().contains(item.geometry()), item  # ничего не обрезано справа

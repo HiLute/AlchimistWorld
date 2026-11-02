@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
-    QHBoxLayout,
     QHeaderView,
     QMessageBox,
     QPushButton,
@@ -37,6 +36,7 @@ from alchimist.ui_qt.markdown import to_html
 from alchimist.ui_qt.pages.base import Page
 from alchimist.ui_qt.theme import muted_color, rarity_color, warning_color
 from alchimist.ui_qt.widgets.common import FilterBar, SearchBox, page_heading
+from alchimist.ui_qt.widgets.flow import FlowLayout
 
 ANY = "__any__"
 
@@ -96,7 +96,7 @@ class IngredientsTab(QWidget):
         splitter.setStretchFactor(1, 2)
 
         # Справочник правит только GM (FR-14.6): у игрока этих кнопок нет.
-        buttons = QHBoxLayout()
+        buttons = FlowLayout()  # с переносом: иначе строка задаёт ширину окна
         self.gm_buttons: list[QPushButton] = []
         for text, handler in (
             (_("Добавить…"), self.add),
@@ -119,7 +119,6 @@ class IngredientsTab(QWidget):
         self.unknown_check.toggled.connect(self._toggle_unknown)
         for widget in (self.learn_button, self.forget_button, self.unknown_check):
             buttons.addWidget(widget)
-        buttons.addStretch(1)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -437,7 +436,7 @@ class PotionsTab(QWidget):
         splitter.setStretchFactor(1, 2)
 
         # Справочник правит только GM (FR-14.6): у игрока этих кнопок нет.
-        buttons = QHBoxLayout()
+        buttons = FlowLayout()  # с переносом: иначе строка задаёт ширину окна
         self.gm_buttons: list[QPushButton] = []
         for text, handler in (
             (_("Добавить…"), self.add),
@@ -460,7 +459,6 @@ class PotionsTab(QWidget):
         self.unknown_check.toggled.connect(self._toggle_unknown)
         for widget in (self.learn_button, self.forget_button, self.unknown_check):
             buttons.addWidget(widget)
-        buttons.addStretch(1)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

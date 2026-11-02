@@ -452,6 +452,14 @@ QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QComboBox, QDateEdit {{
     selection-background-color: {c.selection};
     selection-color: {c.on_selection};
 }}
+/* Число только для показа (сумма элементов): выглядит как поле, но это подпись. */
+QLabel#valueField {{
+    background: {c.surface};
+    border: 1px solid {c.border};
+    border-radius: 6px;
+    padding: 5px 8px;
+    min-width: 3em;
+}}
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus,
 QSpinBox:focus, QComboBox:focus, QDateEdit:focus {{
     border: 1px solid {c.accent};

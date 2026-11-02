@@ -48,6 +48,7 @@ from alchimist.ui_qt.widgets.common import (
     page_heading,
 )
 from alchimist.ui_qt.widgets.element_badge import rarity_icon
+from alchimist.ui_qt.widgets.flow import FlowLayout, group
 from alchimist.ui_qt.widgets.row_buttons import RowButtonsDelegate
 
 #: Значение «не фильтровать» в выпадающих списках, как в «Справочнике».
@@ -100,8 +101,9 @@ class CanBrewPage(Page):
         self.filters.changed.connect(self.refresh)
 
         # П-8.1 и П-8.2: насколько широко искать. Чем больше, тем дольше пересчёт.
-        limits = QHBoxLayout()
-        limits.addWidget(QLabel(_("Сортировка")))
+        # С переносом: в одну линию эта строка задавала ширину окна (issue #2).
+        limits = FlowLayout(spacing=16)
+        sort_label = QLabel(_("Сортировка"))
         self.sort_by = QComboBox()
         for text, key in (
             (_("по редкости"), "rarity"),
@@ -112,17 +114,15 @@ class CanBrewPage(Page):
             self.sort_by.addItem(text, key)
         self.sort_by.setToolTip(_("В каком порядке показывать зелья"))
         self.sort_by.currentIndexChanged.connect(lambda _i: self.refresh())
-        limits.addWidget(self.sort_by)
-        limits.addSpacing(16)
-        limits.addWidget(QLabel(_("Лишних эссенций не больше")))
+        limits.addWidget(group(sort_label, self.sort_by))
+        excess_label = QLabel(_("Лишних эссенций не больше"))
         self.max_excess = QSpinBox()
         self.max_excess.setRange(0, 6)
         self.max_excess.setValue(DEFAULT_MAX_EXCESS)
         self.max_excess.setToolTip(_("Каждая лишняя эссенция поднимает сложность на 1 (П-8.1)"))
         self.max_excess.valueChanged.connect(lambda _v: self.refresh())
-        limits.addWidget(self.max_excess)
-        limits.addSpacing(16)
-        limits.addWidget(QLabel(_("Порций не больше")))
+        limits.addWidget(group(excess_label, self.max_excess))
+        portions_label = QLabel(_("Порций не больше"))
         self.max_portions = QSpinBox()
         self.max_portions.setRange(1, 6)
         self.max_portions.setValue(DEFAULT_MAX_PORTIONS)
@@ -130,8 +130,7 @@ class CanBrewPage(Page):
             _("Каждая порция сверх первой поднимает сложность на 2 (П-8.2)")
         )
         self.max_portions.valueChanged.connect(lambda _v: self.refresh())
-        limits.addWidget(self.max_portions)
-        limits.addStretch(1)
+        limits.addWidget(group(portions_label, self.max_portions))
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(6)

@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QSizePolicy,
@@ -27,6 +26,7 @@ from alchimist.core.models import (
 )
 from alchimist.i18n import _, describe
 from alchimist.ui_qt.theme import error_color, muted_color, on_theme_changed, warning_color
+from alchimist.ui_qt.widgets.flow import FlowLayout, group
 
 
 class SearchBox(QLineEdit):
@@ -145,15 +145,17 @@ class MessageStrip(QFrame):
 
 
 class FilterBar(QWidget):
-    """Строка фильтров: набор выпадающих списков и флажков."""
+    """Строка фильтров: набор выпадающих списков и флажков.
+
+    Фильтры переносятся на следующую строку, когда не влезают: иначе строка
+    задаёт минимальную ширину всего окна, и на небольшом экране оно не помещалось.
+    """
 
     changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(8)
+        self._layout = FlowLayout(self, spacing=8)
         self._widgets: dict[str, QWidget] = {}
         self._enums: dict[str, type] = {}
 
@@ -175,8 +177,8 @@ class FilterBar(QWidget):
         for text, value in options:
             combo.addItem(text, value)
         combo.currentIndexChanged.connect(lambda _i: self.changed.emit())
-        self._layout.addWidget(QLabel(label))
-        self._layout.addWidget(combo)
+        # Подпись переносится только вместе со своим списком.
+        self._layout.addWidget(group(QLabel(label), combo))
         self._widgets[key] = combo
         if enum_type is not None:
             self._enums[key] = enum_type
@@ -190,10 +192,11 @@ class FilterBar(QWidget):
         return check
 
     def add_stretch(self) -> None:
-        self._layout.addStretch(1)
+        """Ничего не делает: фильтры и так прижаты влево. Оставлено для вызывающих."""
 
-    def add_widget(self, widget: QWidget) -> None:
-        self._layout.addWidget(widget)
+    def add_widget(self, *widgets: QWidget) -> None:
+        """Несколько виджетов сразу — одна неразрывная группа (например, период)."""
+        self._layout.addWidget(widgets[0] if len(widgets) == 1 else group(*widgets))
 
     def value(self, key: str):
         widget = self._widgets[key]

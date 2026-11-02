@@ -22,7 +22,12 @@ DEFAULT_MAXIMUM = 9_999_999
 
 
 class ElementCounters(QWidget):
-    """Семь счётчиков в фиксированном порядке."""
+    """Семь счётчиков в фиксированном порядке.
+
+    `read_only=True` — только показ (сумма в лаборатории и в окне варки): тогда
+    вместо полей ввода подписи, оформленные как поле. Поле ввода без стрелок в
+    Qt 6.12 под таблицей стилей сжимает текст до пикселя, и число пропадало.
+    """
 
     changed = Signal(object)  # ElementVector
 
@@ -36,7 +41,8 @@ class ElementCounters(QWidget):
     ) -> None:
         super().__init__(parent)
         self._read_only = read_only
-        self._boxes: dict[Element, QSpinBox] = {}
+        self._boxes: dict[Element, QSpinBox | QLabel] = {}
+        self._values: dict[Element, int] = dict.fromkeys(ELEMENT_ORDER, 0)
         self._dots: dict[Element, QLabel] = {}
 
         layout = QGridLayout(self)
@@ -50,16 +56,15 @@ class ElementCounters(QWidget):
             dot.setPixmap(colored_dot(element_color(element)))
             self._dots[element] = dot
             name = QLabel(ELEMENT_NAMES_RU[element])
-            box = QSpinBox()
-            box.setRange(0, maximum)
-            box.setReadOnly(read_only)
-            box.setButtonSymbols(
-                QSpinBox.ButtonSymbols.NoButtons
-                if read_only
-                else QSpinBox.ButtonSymbols.UpDownArrows
-            )
+            box: QSpinBox | QLabel
+            if read_only:
+                box = QLabel("0")
+                box.setObjectName("valueField")
+            else:
+                box = QSpinBox()
+                box.setRange(0, maximum)
+                box.valueChanged.connect(self._emit)
             box.setAccessibleName(ELEMENT_NAMES_RU[element])
-            box.valueChanged.connect(self._emit)
             self._boxes[element] = box
 
             layout.addWidget(dot, row, column * 3)
@@ -78,15 +83,20 @@ class ElementCounters(QWidget):
             self.changed.emit(self.vector())
 
     def vector(self) -> ElementVector:
-        return ElementVector.from_dict(
-            {str(e.value): b.value() for e, b in self._boxes.items() if b.value()}
+        values = (
+            self._values if self._read_only else {e: b.value() for e, b in self._boxes.items()}  # type: ignore[union-attr]
         )
+        return ElementVector.from_dict({str(e.value): v for e, v in values.items() if v})
 
     def set_vector(self, vector: ElementVector) -> None:
         for element, box in self._boxes.items():
-            box.blockSignals(True)
-            box.setValue(vector[element])
-            box.blockSignals(False)
+            if isinstance(box, QLabel):
+                self._values[element] = vector[element]
+                box.setText(str(vector[element]))
+            else:
+                box.blockSignals(True)
+                box.setValue(vector[element])
+                box.blockSignals(False)
         self._emit()
 
     def clear(self) -> None:

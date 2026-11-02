@@ -103,17 +103,15 @@ class JournalPage(Page):
             editor.setEnabled(False)
             editor.dateChanged.connect(lambda _d: self.refresh())
         self.period.toggled.connect(self._toggle_period)
-        self.filters.add_widget(self.period)
-        self.filters.add_widget(self.since)
-        self.filters.add_widget(QLabel("—"))
-        self.filters.add_widget(self.until)
+        self.filters.add_widget(self.period, self.since, QLabel("—"), self.until)
         self.filters.add_stretch()
         self.filters.changed.connect(self.refresh)
 
         # FR-8.4: «пробовал ли я Огонь+Вода на вязкой основе?»
         self.by_combination = QCheckBox(_("Искать комбинацию"))
         self.by_combination.toggled.connect(self._toggle_combination)
-        self.combination = ElementCounters(columns=7, maximum=9)
+        # Четыре в строку: семь в одну линию задавали ширину всего окна (issue #2).
+        self.combination = ElementCounters(columns=4, maximum=9)
         self.combination.setEnabled(False)
         self.combination.changed.connect(lambda _v: self.refresh())
 
