@@ -190,7 +190,7 @@ class IngredientsTab(QWidget):
                 continue
             if rarity != ANY and ingredient.rarity != rarity:
                 continue
-            if category != ANY and ingredient.category != category:
+            if category != ANY and not ingredient.in_category(category):
                 continue
             if element != ANY and not ingredient.elements[element]:
                 continue
@@ -200,7 +200,7 @@ class IngredientsTab(QWidget):
                 [
                     ingredient.name + (" ⚠" if ingredient.id in warnings else ""),
                     RARITY_NAMES_RU[ingredient.rarity],
-                    CATEGORY_NAMES_RU[ingredient.category],
+                    ingredient.category_names_ru(),
                     ingredient.elements.format_ru() if known else _("не изучен"),
                 ]
             )
@@ -266,7 +266,7 @@ class IngredientsTab(QWidget):
         parts = [
             f"<h3>{ingredient.name}</h3>",
             f"<p><i>{RARITY_NAMES_RU[ingredient.rarity]} · "
-            f"{CATEGORY_NAMES_RU[ingredient.category]}" + "</i></p>",
+            f"{ingredient.category_names_ru()}" + "</i></p>",
             f"<p><b>{_('Элементы')}:</b> {elements}</p>",
         ]
         if ingredient.habitats:

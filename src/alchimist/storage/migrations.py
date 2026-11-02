@@ -17,13 +17,13 @@ from alchimist.core.errors import ErrorCode, StorageError
 
 #: Текущие версии схем.
 CURRENT_VERSIONS: dict[str, int] = {
-    "ingredients": 2,
+    "ingredients": 3,
     "potions": 1,
     "inventory": 1,
     "journal": 5,
     "queue": 2,
     "settings": 1,
-    "catalog-export": 2,
+    "catalog-export": 3,
     "character": 2,
 }
 
@@ -92,6 +92,16 @@ def _journal_v3_to_v4(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _ingredients_v2_to_v3(data: dict[str, Any]) -> dict[str, Any]:
+    """У особой основы может быть вторая категория (`secondary_category`, П-3.3).
+
+    Данные не меняются: у старых реагентов второй категории нет. Версия поднята,
+    чтобы приложение постарше не переписало справочник, молча потеряв её — тогда
+    основа-растение перестала бы подходить набору травника.
+    """
+    return data
+
+
 def _journal_v4_to_v5(data: dict[str, Any]) -> dict[str, Any]:
     """Особая основа теперь тратится по одной на порцию; у варки есть `base_qty`.
 
@@ -124,7 +134,7 @@ def _character_v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
 
 #: Цепочки миграций: MIGRATIONS["ingredients"][1] превращает v1 в v2.
 MIGRATIONS: dict[str, dict[int, Migration]] = {
-    "ingredients": {1: _ingredients_v1_to_v2},
+    "ingredients": {1: _ingredients_v1_to_v2, 2: _ingredients_v2_to_v3},
     "potions": {},
     "inventory": {},
     "journal": {
@@ -136,7 +146,7 @@ MIGRATIONS: dict[str, dict[int, Migration]] = {
     "queue": {1: _queue_v1_to_v2},
     "settings": {},
     # Файл обмена устроен как справочник: реагенты в нём мигрируют так же.
-    "catalog-export": {1: _ingredients_v1_to_v2},
+    "catalog-export": {1: _ingredients_v1_to_v2, 2: _ingredients_v2_to_v3},
     "character": {1: _character_v1_to_v2},
 }
 

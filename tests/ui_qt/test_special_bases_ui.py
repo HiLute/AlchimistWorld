@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialogButtonBox
 
 from alchimist.core.elements import ElementVector as EV
 from alchimist.core.models import (
@@ -169,4 +170,78 @@ def test_brew_dialog_caps_portions_by_bases(vampire, qapp) -> None:
     qapp.processEvents()
     assert dialog.portions.isEnabled()
     assert dialog.request().portions == 2
+    dialog.close()
+
+
+# ── вторая категория у особой основы (П-3.3) ─────────────────────────────────
+def test_ingredient_dialog_secondary_category(ui_app, qapp) -> None:
+    from alchimist.ui_qt.dialogs.ingredient_dialog import IngredientDialog
+
+    dialog = IngredientDialog(ui_app)
+    dialog.show()
+    # По умолчанию растение — строки «Вторая категория» нет вовсе.
+    assert not dialog._form.isRowVisible(dialog.secondary)
+    assert not dialog.secondary.isVisible()
+    dialog.category.setCurrentIndex(dialog.category.findData(IngredientCategory.BASE))
+    assert dialog._form.isRowVisible(dialog.secondary) and dialog.secondary.isVisible()
+    dialog.secondary.setCurrentIndex(dialog.secondary.findData(IngredientCategory.CREATURE))
+    assert dialog.build().categories == (IngredientCategory.BASE, IngredientCategory.CREATURE)
+
+    # Ушли с основы — вторая категория сбрасывается.
+    dialog.category.setCurrentIndex(dialog.category.findData(IngredientCategory.PLANT))
+    assert not dialog.secondary.isVisible()
+    assert dialog.build().secondary_category is None
+    dialog.close()
+
+
+def test_catalog_filter_finds_base_by_second_category(window, ui_app, qapp) -> None:
+    from alchimist.ui_qt.pages.catalog import CatalogPage
+
+    ui_app.add_ingredient(
+        Ingredient(
+            id="",
+            name="Сок Железного Дуба",
+            rarity=Rarity.UNCOMMON,
+            category=IngredientCategory.BASE,
+            elements=EV.from_dict({"earth": 1}),
+            secondary_category=IngredientCategory.PLANT,
+        )
+    )
+    window.go_to(CatalogPage)
+    qapp.processEvents()
+    tab = next(p for p in window.pages if isinstance(p, CatalogPage)).ingredients
+
+    def rows() -> dict[str, str]:
+        return {
+            tab.tree.topLevelItem(i).text(0): tab.tree.topLevelItem(i).text(2)
+            for i in range(tab.tree.topLevelItemCount())
+        }
+
+    assert rows()["Сок Железного Дуба"] == "Основа · Растение"
+    combo = tab.filters._widgets["category"]
+    for category in (IngredientCategory.PLANT, IngredientCategory.BASE):
+        combo.setCurrentIndex(combo.findData(category))
+        qapp.processEvents()
+        assert "Сок Железного Дуба" in rows(), category
+    combo.setCurrentIndex(combo.findData(IngredientCategory.CREATURE))
+    qapp.processEvents()
+    assert "Сок Железного Дуба" not in rows()
+
+
+def test_ingredient_dialog_grows_when_the_second_category_appears(ui_app, qapp) -> None:
+    """Окно само подрастает: иначе в Hyprland кнопки уезжали за нижний край."""
+    from alchimist.ui_qt.dialogs.ingredient_dialog import IngredientDialog
+
+    dialog = IngredientDialog(ui_app)
+    dialog.show()
+    qapp.processEvents()
+    dialog.setMinimumSize(1, 1)  # как оконный менеджер, который минимум не применяет
+    dialog.resize(dialog.width(), dialog.sizeHint().height())
+    qapp.processEvents()
+    dialog.category.setCurrentIndex(dialog.category.findData(IngredientCategory.BASE))
+    qapp.processEvents()
+    assert dialog.height() >= dialog.sizeHint().height()
+    buttons = dialog.findChild(QDialogButtonBox)
+    bottom = buttons.mapTo(dialog, buttons.rect().bottomLeft()).y()
+    assert bottom <= dialog.height()
     dialog.close()

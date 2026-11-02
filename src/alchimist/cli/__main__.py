@@ -10,7 +10,6 @@ from alchimist.core.elements import ELEMENT_NAMES_RU
 from alchimist.core.errors import AlchimistError, ErrorCode, Severity
 from alchimist.core.models import (
     BASE_NAMES_RU,
-    CATEGORY_NAMES_RU,
     KIND_NAMES_RU,
     KIT_NAMES_RU,
     RARITY_NAMES_RU,
@@ -44,7 +43,7 @@ def cmd_catalog(args: argparse.Namespace) -> int:
             elements = item.elements.format_ru() if known else "не изучен"
             print(
                 f"{item.name:38} {RARITY_NAMES_RU[item.rarity]:12} "
-                f"{CATEGORY_NAMES_RU[item.category]:10} {elements:30}"
+                f"{item.category_names_ru():18} {elements:30}"
                 f"{habitats}"
             )
     else:

@@ -64,17 +64,25 @@ def _enum(kind: type, value: Any, default: Any, path: str) -> Any:
 
 # ── Реагенты (03 §6.3) ────────────────────────────────────────────────────────
 def ingredient_to_dict(item: Ingredient) -> dict[str, Any]:
-    return {
+    data: dict[str, Any] = {
         "id": item.id,
         "name": item.name,
         "rarity": int(item.rarity),
         "category": str(item.category.value),
-        "elements": item.elements.to_dict(),
-        "habitats": list(item.habitats),
-        "description": item.description,
-        "hidden": item.hidden,
-        "updated_at": _dt(item.updated_at),
     }
+    # Вторая категория бывает только у особой основы — у остальных ключа нет.
+    if item.secondary_category is not None:
+        data["secondary_category"] = str(item.secondary_category.value)
+    data.update(
+        {
+            "elements": item.elements.to_dict(),
+            "habitats": list(item.habitats),
+            "description": item.description,
+            "hidden": item.hidden,
+            "updated_at": _dt(item.updated_at),
+        }
+    )
+    return data
 
 
 def ingredient_from_dict(data: dict[str, Any], path: str = "") -> Ingredient:
@@ -94,6 +102,7 @@ def ingredient_from_dict(data: dict[str, Any], path: str = "") -> Ingredient:
             description=str(data.get("description", "")),
             hidden=bool(data.get("hidden", False)),
             updated_at=_parse_dt(data.get("updated_at"), path),
+            secondary_category=data.get("secondary_category") or None,
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise StorageError(ErrorCode.STORAGE_CORRUPT, path=path, reason=str(exc)) from exc

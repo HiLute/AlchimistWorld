@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: AlchimistWorld VERSION\n"
 "Report-Msgid-Bugs-To: -\n"
-"POT-Creation-Date: 2026-11-02 12:36+0400\n"
+"POT-Creation-Date: 2026-11-02 13:27+0400\n"
 "PO-Revision-Date: 2026-09-11 17:15+0400\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/alchimist/cli/__main__.py:359
+#: src/alchimist/cli/__main__.py:358
 msgid "Помощник по алхимии для D&D"
 msgstr ""
 
@@ -289,6 +289,7 @@ msgid "элементов не хватает"
 msgstr ""
 
 #: src/alchimist/ui_qt/dialogs/brew_dialog.py:337
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:60
 msgid "нет"
 msgstr ""
 
@@ -384,36 +385,40 @@ msgid ""
 "изученные рецепты, а рецепты обычных зелий он знает с самого начала."
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:46
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:48
 #: src/alchimist/ui_qt/pages/lab.py:105 src/alchimist/ui_qt/pages/lab.py:124
 #: src/alchimist/ui_qt/pages/reagents.py:160
 msgid "Реагент"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:46
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:48
 msgid "Новый реагент"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:58
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:64
+msgid "Основа-растение подходит набору травника и как реагент (П-6.3)"
+msgstr ""
+
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:68
 msgid "Лес, Луг, Болота — через запятую"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:60
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:70
 msgid "Описание (на расчёты не влияет)"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:61
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:71
 msgid "Скрыт: не показывать в списках и подборе"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:75
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:88
 #: src/alchimist/ui_qt/dialogs/potion_dialog.py:155
 #: src/alchimist/ui_qt/pages/catalog.py:96
 #: src/alchimist/ui_qt/pages/catalog.py:447
 msgid "Название"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:76
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:89
 #: src/alchimist/ui_qt/dialogs/potion_dialog.py:157
 #: src/alchimist/ui_qt/pages/can_brew.py:88
 #: src/alchimist/ui_qt/pages/catalog.py:76
@@ -425,17 +430,23 @@ msgstr ""
 msgid "Редкость"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:77
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:90
 #: src/alchimist/ui_qt/pages/catalog.py:82
 #: src/alchimist/ui_qt/pages/catalog.py:96
 msgid "Категория"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:78
-msgid "Набору травника доступны только растения (П-6.3)."
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:91
+msgid "Вторая категория"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:79
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:95
+msgid ""
+"Набору травника доступны только растения, в том числе основа-растение "
+"(П-6.3)."
+msgstr ""
+
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:98
 #: src/alchimist/ui_qt/dialogs/potion_dialog.py:69
 #: src/alchimist/ui_qt/pages/catalog.py:96
 #: src/alchimist/ui_qt/pages/catalog.py:270
@@ -444,16 +455,16 @@ msgstr ""
 msgid "Элементы"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:80
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:99
 msgid "Места обитания"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:81
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:100
 #: src/alchimist/ui_qt/dialogs/potion_dialog.py:160
 msgid "Описание"
 msgstr ""
 
-#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:95
+#: src/alchimist/ui_qt/dialogs/ingredient_dialog.py:114
 msgid ""
 "П-3.2: единиц элементов столько же, сколько уровень редкости; у особой "
 "основы — на одну меньше (П-4.4)"

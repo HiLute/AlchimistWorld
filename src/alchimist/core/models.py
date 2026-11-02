@@ -86,6 +86,13 @@ class IngredientCategory(StrEnum):
     OTHER = "other"
 
 
+#: Какой второй категорией может быть особая основа: Сок Стального Дерева — основа
+#: и растение, кровь дракочерепахи — основа и «с существ» (П-3.3).
+SECONDARY_CATEGORIES: tuple[IngredientCategory, ...] = (
+    IngredientCategory.PLANT,
+    IngredientCategory.CREATURE,
+)
+
 CATEGORY_NAMES_RU: dict[IngredientCategory, str] = {
     IngredientCategory.PLANT: "Растение",
     IngredientCategory.ESSENCE: "Эссенция",
@@ -175,15 +182,35 @@ class Ingredient:
     description: str = ""
     hidden: bool = False
     updated_at: datetime | None = None
+    #: Вторая категория — только у особой основы и только из `SECONDARY_CATEGORIES`.
+    secondary_category: IngredientCategory | None = None
 
     def __post_init__(self) -> None:
         self.rarity = coerce_enum(Rarity, self.rarity, Rarity.COMMON)
         self.category = coerce_enum(IngredientCategory, self.category, IngredientCategory.OTHER)
+        secondary = coerce_enum(IngredientCategory, self.secondary_category)
+        if self.category is not IngredientCategory.BASE or secondary not in SECONDARY_CATEGORIES:
+            secondary = None
+        self.secondary_category = secondary
+
+    @property
+    def categories(self) -> tuple[IngredientCategory, ...]:
+        """Все категории реагента: своя и, у особой основы, вторая."""
+        if self.secondary_category is None:
+            return (self.category,)
+        return (self.category, self.secondary_category)
+
+    def in_category(self, category: IngredientCategory) -> bool:
+        return category in self.categories
+
+    def category_names_ru(self) -> str:
+        """«Растение» или «Основа · Растение»."""
+        return " · ".join(CATEGORY_NAMES_RU[c] for c in self.categories)
 
     @property
     def is_plant(self) -> bool:
-        """Подходит набору травника (П-6.3)."""
-        return self.category is IngredientCategory.PLANT
+        """Подходит набору травника (П-6.3): растение, в том числе основа-растение."""
+        return self.in_category(IngredientCategory.PLANT)
 
     @property
     def is_special_base(self) -> bool:

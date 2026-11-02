@@ -260,7 +260,7 @@ def test_too_new_exchange_file_is_refused(app: AppService, tmp_path) -> None:
 
 def test_builtin_catalog_is_current() -> None:
     data = json.loads(BUILTIN_CATALOG.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     assert all("is_herb" not in i for i in data["ingredients"])
     assert {i["category"] for i in data["ingredients"]} <= {"plant", "essence", "creature"}
 

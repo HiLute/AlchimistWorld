@@ -29,7 +29,7 @@ def test_export_file_shape(app: AppService, tmp_path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
 
     assert data["format"] == EXCHANGE_FORMAT
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     assert data["exported_by"] == "Гримли"
     assert len(data["ingredients"]) == len(app.catalog.catalog.ingredients)
     assert "reagents" not in data and "entries" not in data  # FR-10.4

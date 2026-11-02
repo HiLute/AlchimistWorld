@@ -55,7 +55,7 @@ def test_files_are_human_readable(paths: Paths, catalog: Catalog) -> None:
     text = paths.ingredients_file.read_text(encoding="utf-8")
     assert "Щёлкорех" in text
     assert "\\u" not in text
-    assert '\n  "schema_version": 2,' in text
+    assert '\n  "schema_version": 3,' in text
     assert text.endswith("\n")
 
 
@@ -369,3 +369,20 @@ def test_character_keeps_learned_reagents() -> None:
 
     old = {"schema_version": 1, "name": "Айн", "kits": ["alchemist"], "known_recipes": []}
     assert character_from_dict(migrate("character", old), "ayn").known_ingredients is None
+
+
+def test_secondary_category_round_trip() -> None:
+    """П-3.3: вторая категория пишется только у основы, у остальных ключа нет."""
+    from alchimist.core.models import Ingredient, IngredientCategory
+    from alchimist.storage.serde import ingredient_from_dict, ingredient_to_dict
+
+    sap = Ingredient(
+        id="sok",
+        name="Сок",
+        category=IngredientCategory.BASE,
+        secondary_category=IngredientCategory.PLANT,
+    )
+    raw = ingredient_to_dict(sap)
+    assert raw["secondary_category"] == "plant"
+    assert ingredient_from_dict(raw).secondary_category is IngredientCategory.PLANT
+    assert "secondary_category" not in ingredient_to_dict(Ingredient(id="x", name="Х"))

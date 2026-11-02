@@ -18,9 +18,11 @@ from alchimist.core.elements import ElementVector
 from alchimist.core.models import (
     CATEGORY_NAMES_RU,
     RARITY_NAMES_RU,
+    SECONDARY_CATEGORIES,
     Ingredient,
     IngredientCategory,
     Rarity,
+    coerce_enum,
 )
 from alchimist.i18n import _
 from alchimist.services.app import AppService
@@ -53,6 +55,14 @@ class IngredientDialog(QDialog):
         self.category = QComboBox()
         for category in IngredientCategory:
             self.category.addItem(CATEGORY_NAMES_RU[category], category)
+        # Особая основа может быть ещё растением или «с существ» (П-3.3).
+        self.secondary = QComboBox()
+        self.secondary.addItem(_("нет"), None)
+        for category in SECONDARY_CATEGORIES:
+            self.secondary.addItem(CATEGORY_NAMES_RU[category], category)
+        self.secondary.setToolTip(
+            _("Основа-растение подходит набору травника и как реагент (П-6.3)")
+        )
         self.elements = ElementCounters(columns=2, maximum=9)
         self.habitats = QLineEdit()
         self.habitats.setPlaceholderText(_("Лес, Луг, Болота — через запятую"))
@@ -64,6 +74,9 @@ class IngredientDialog(QDialog):
         if ingredient:
             self.rarity.setCurrentIndex(list(Rarity).index(ingredient.rarity))
             self.category.setCurrentIndex(list(IngredientCategory).index(ingredient.category))
+            self.secondary.setCurrentIndex(
+                max(0, self.secondary.findData(ingredient.secondary_category))
+            )
             self.elements.set_vector(ingredient.elements)
             self.habitats.setText(", ".join(ingredient.habitats))
             self.description.setPlainText(ingredient.description)
@@ -71,11 +84,17 @@ class IngredientDialog(QDialog):
         else:
             self.category.setCurrentIndex(list(IngredientCategory).index(IngredientCategory.PLANT))
 
-        form = QFormLayout()
+        form = self._form = QFormLayout()
         form.addRow(_("Название"), self.name)
         form.addRow(_("Редкость"), self.rarity)
         form.addRow(_("Категория"), self.category)
-        form.addRow("", hint_label(_("Набору травника доступны только растения (П-6.3).")))
+        form.addRow(_("Вторая категория"), self.secondary)
+        form.addRow(
+            "",
+            hint_label(
+                _("Набору травника доступны только растения, в том числе основа-растение (П-6.3).")
+            ),
+        )
         form.addRow(_("Элементы"), self.elements)
         form.addRow(_("Места обитания"), self.habitats)
         form.addRow(_("Описание"), self.description)
@@ -101,17 +120,43 @@ class IngredientDialog(QDialog):
         layout.addWidget(buttons)
 
         self.category.currentIndexChanged.connect(self._category_changed)
+        self.secondary.currentIndexChanged.connect(self._revalidate)
         self.rarity.currentIndexChanged.connect(self._revalidate)
         self.elements.changed.connect(lambda _v: self._revalidate())
         self.name.textChanged.connect(self._revalidate)
-        self._revalidate()
+        self._category_changed()  # доступность второй категории и проверка П-3.2
 
     def _category_changed(self) -> None:
-        """У особой основы своё правило редкости (П-4.4) — пересчитать предупреждения."""
+        """У особой основы своё правило редкости (П-4.4) — пересчитать предупреждения.
+
+        Вторая категория бывает только у основы: у остальных этой строки не видно.
+        """
+        # Qt отдаёт StrEnum обратно обычной строкой — приводим, иначе `is` не сработает.
+        category = coerce_enum(IngredientCategory, self.category.currentData())
+        is_base = category is IngredientCategory.BASE
+        self._form.setRowVisible(self.secondary, is_base)
+        if not is_base:
+            self.secondary.setCurrentIndex(0)
         self._revalidate()
 
     def _revalidate(self) -> None:
         self.messages.show_messages(self.app.catalog.validate_ingredient(self.build()))
+        self._fit_height()
+
+    def _fit_height(self) -> None:
+        """Выросло содержимое (строка второй категории, предупреждение) — подрастить окно.
+
+        Сам Qt лишь поднимает минимальную высоту, а тайловые оконные менеджеры
+        (Hyprland) применяют её только при следующем изменении размера: до тех пор
+        кнопки «Сохранить» и «Отмена» уходят за нижний край окна.
+        """
+        layout = self.layout()
+        if layout is None or not self.isVisible():
+            return
+        layout.activate()
+        needed = self.sizeHint().height()
+        if self.height() < needed:
+            self.resize(self.width(), needed)
 
     def build(self) -> Ingredient:
         habitats = [h.strip() for h in self.habitats.text().split(",") if h.strip()]
@@ -120,6 +165,7 @@ class IngredientDialog(QDialog):
             name=self.name.text().strip(),
             rarity=self.rarity.currentData(),
             category=self.category.currentData(),
+            secondary_category=self.secondary.currentData(),
             elements=self.elements.vector() or ElementVector(),
             habitats=habitats,
             description=self.description.toPlainText().strip(),

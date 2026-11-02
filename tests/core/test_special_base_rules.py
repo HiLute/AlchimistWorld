@@ -177,3 +177,44 @@ def test_collisions_are_per_special_base() -> None:
     assert len(collisions) == 1
     assert collisions[0].params["others"] == ["Лекарство от вампиризма"]  # не «На жидкой»
     assert collisions[0].params["base_name"] == "Кровь вампира"
+
+
+# ── вторая категория у особой основы (П-3.3) ─────────────────────────────────
+def _sap(secondary=IngredientCategory.PLANT, category=IngredientCategory.BASE) -> Ingredient:
+    return Ingredient(
+        id="sok",
+        name="Сок Стального Дерева",
+        rarity=Rarity.UNCOMMON,
+        category=category,
+        elements=EV.from_dict({"earth": 1}),
+        secondary_category=secondary,
+    )
+
+
+def test_secondary_category_only_for_bases() -> None:
+    sap = _sap()
+    assert sap.categories == (IngredientCategory.BASE, IngredientCategory.PLANT)
+    assert sap.in_category(IngredientCategory.PLANT) and sap.is_special_base
+    assert sap.category_names_ru() == "Основа · Растение"
+    # Не основе вторая категория не положена, а основе — только растение или существа.
+    assert _sap(category=IngredientCategory.PLANT).secondary_category is None
+    assert _sap(secondary=IngredientCategory.ESSENCE).secondary_category is None
+    assert _sap(secondary=IngredientCategory.BASE).secondary_category is None
+    assert _sap(secondary="creature").secondary_category is IngredientCategory.CREATURE
+    assert _sap(secondary="other").secondary_category is None
+    assert _sap(secondary=None).categories == (IngredientCategory.BASE,)
+
+
+def test_secondary_category_keeps_the_base_rarity_rule() -> None:
+    """Правило П-3.2 — как у основы: необычной основе-растению положен один элемент."""
+    assert _sap().expected_units() == 1
+    assert check_ingredient(_sap()) == []
+    two = _sap()
+    two.elements = EV.from_dict({"earth": 2})
+    assert [m.code for m in check_ingredient(two)] == [WarningCode.RARITY_UNITS_MISMATCH]
+
+
+def test_herbalist_takes_a_plant_base_as_a_reagent() -> None:
+    assert kit_allows_ingredient(Kit.HERBALIST, _sap())
+    assert not kit_allows_ingredient(Kit.HERBALIST, _sap(secondary=IngredientCategory.CREATURE))
+    assert not kit_allows_ingredient(Kit.HERBALIST, _sap(secondary=None))
